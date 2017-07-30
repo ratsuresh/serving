@@ -442,7 +442,7 @@ int main(int argc, char** argv) {
   options.file_system_poll_wait_seconds = file_system_poll_wait_seconds;
 
   std::unique_ptr<ServerCore> core;
-  TF_CHECK_OK(ServerCore::Create(std::move(options), &core));
+  TF_CHECK_OK(ServerCore::Create(std::move(options), &core, model_config_file));
   RunServer(port, std::move(core), use_saved_model);
 
   return 0;

@@ -76,6 +76,7 @@ cc_library(
         "//tensorflow_serving/util:unique_ptr_with_deps",
         "@org_tensorflow//tensorflow/core:lib",
         "@protobuf//:cc_wkt_protos",
+        "@org_tensorflow//tensorflow/contrib/batching/util:periodic_function",
     ],
 )
 
@@ -142,7 +143,7 @@ cc_binary(
 
 py_test(
     name = "tensorflow_model_server_test",
-    size = "medium",
+    size = "large",
     srcs = ["tensorflow_model_server_test.py"],
     data = [
         ":tensorflow_model_server",

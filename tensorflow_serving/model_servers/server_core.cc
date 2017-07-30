@@ -28,6 +28,7 @@ limitations under the License.
 #include "tensorflow_serving/servables/tensorflow/session_bundle_source_adapter.pb.h"
 #include "tensorflow_serving/sources/storage_path/file_system_storage_path_source.h"
 #include "tensorflow_serving/sources/storage_path/file_system_storage_path_source.pb.h"
+#include "tensorflow_serving/config/model_server_config.pb.h"
 
 namespace tensorflow {
 namespace serving {
@@ -156,9 +157,21 @@ std::set<string> NewModelNamesInSourceConfig(
 // ************************************************************************
 // Public Methods.
 // ************************************************************************
+void ServerCore::InitializeCallback(std::unique_ptr<ServerCore>* core, int32 pollTimeWaitSec, string basePath)
+{
+  server_core_ = core->get();
+  struct stat file_stat;
+  stat(basePath.c_str(), &file_stat);
+  PeriodicFunction::Options pf_options;
+  last_Modified_Time_ = file_stat.st_mtime;
+  path_of_base_Config_ = basePath;
+  pf_options.thread_name_prefix = "Check_ModelConfigFileForUpdate_Thread";
+  check_config_file_update.reset(new PeriodicFunction([this] { CheckConfigUpdate(); }, pollTimeWaitSec , pf_options));
+}
 
 Status ServerCore::Create(Options options,
-                          std::unique_ptr<ServerCore>* server_core) {
+                          std::unique_ptr<ServerCore>* server_core,
+                          string basePath) {
   if (options.servable_state_monitor_creator == nullptr) {
     options.servable_state_monitor_creator = [](
         EventBus<ServableState>* event_bus,
@@ -181,7 +194,46 @@ Status ServerCore::Create(Options options,
   server_core->reset(new ServerCore(std::move(options)));
   TF_RETURN_IF_ERROR(
       (*server_core)->Initialize(std::move(aspired_version_policy)));
+  if(!basePath.empty())
+  {
+      (*server_core)->InitializeCallback(server_core, options.file_system_poll_wait_seconds, basePath);
+  }
   return (*server_core)->ReloadConfig(model_server_config);
+}
+
+tensorflow::Status ServerCore::ParseProtoTextFile(const string& file,
+                                      google::protobuf::Message* message) {
+  std::unique_ptr<tensorflow::ReadOnlyMemoryRegion> file_data;
+  TF_RETURN_IF_ERROR(
+      tensorflow::Env::Default()->NewReadOnlyMemoryRegionFromFile(file,
+                                                                  &file_data));
+  string file_data_str(static_cast<const char*>(file_data->data()),
+                       file_data->length());
+  if (tensorflow::protobuf::TextFormat::ParseFromString(file_data_str,
+                                                        message)) {
+    return tensorflow::Status::OK();
+  } else {
+    return tensorflow::errors::InvalidArgument("Invalid protobuf file: '", file,
+                                               "'");
+  }
+}
+
+template <typename ProtoType>
+ProtoType ServerCore::ReadProtoFromFile(const string& file) {
+  ProtoType proto;
+  TF_CHECK_OK(ParseProtoTextFile(file, &proto));
+  return proto;
+}
+
+void ServerCore::ServerCore::CheckConfigUpdate() {
+    struct stat file_stat;
+    stat(path_of_base_Config_.c_str(), &file_stat);
+    if(file_stat.st_mtime > last_Modified_Time_)
+    {
+        auto model_config_file_file_path = ReadProtoFromFile<ModelServerConfig>(path_of_base_Config_);
+        server_core_->ReloadConfig(model_config_file_file_path);
+        last_Modified_Time_ = file_stat.st_mtime;
+    }
 }
 
 // ************************************************************************

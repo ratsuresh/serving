@@ -91,7 +91,7 @@ class GetModelMetadataImplTest : public ::testing::TestWithParam<bool> {
     // Reduce the number of initial load threads to be num_load_threads to avoid
     // timing out in tests.
     options.num_initial_load_threads = options.num_load_threads;
-    return ServerCore::Create(std::move(options), server_core);
+    return ServerCore::Create(std::move(options), server_core, std::string());
   }
 
   ServerCore* GetServerCore() {

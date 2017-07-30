@@ -73,7 +73,7 @@ Status CreateServerCore(const ModelServerConfig& config,
                         std::unique_ptr<ServerCore>* server_core) {
   ServerCore::Options options = GetDefaultOptions(true /*use_saved_model */);
   options.model_server_config = config;
-  return ServerCore::Create(std::move(options), server_core);
+  return ServerCore::Create(std::move(options), server_core, std::string());
 }
 
 ModelServerConfig ServerCoreTest::GetTestModelServerConfigForFakePlatform() {

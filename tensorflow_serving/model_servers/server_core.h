@@ -34,6 +34,9 @@ limitations under the License.
 #include <memory>
 #include <string>
 #include <utility>
+#include <sys/inotify.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "google/protobuf/any.pb.h"
 #include "tensorflow/core/lib/core/status.h"
@@ -138,11 +141,14 @@ class ServerCore : public Manager {
   // For models statically configured with ModelConfigList, waits for them
   // to be made available (or hit an error) for serving before returning.
   // Returns an error status if any such model fails to load.
-  static Status Create(Options options, std::unique_ptr<ServerCore>* core);
+  static Status Create(Options options, std::unique_ptr<ServerCore>* core, string basePath);
 
   std::vector<ServableId> ListAvailableServableIds() const override {
     return manager_->ListAvailableServableIds();
   }
+  
+  // Check Model Config file for update and reaload the config file incase of updates
+  void CheckConfigUpdate();
 
   // Updates the server core with all the models and sources per the
   // ModelServerConfig. Like Create(), waits for all statically configured
@@ -155,10 +161,24 @@ class ServerCore : public Manager {
   virtual Status ReloadConfig(const ModelServerConfig& config)
       LOCKS_EXCLUDED(config_mu_);
 
+void InitializeCallback(std::unique_ptr<ServerCore>* core,int32 pollTimeWaitSec, string basePath);
+
+  // Check for config file update.
+  // if the model config file changes, then the new config file is realoaded.
+  // This funtionality is added by rahul of SI to enable loading of models into the memory
+  std::unique_ptr<PeriodicFunction> check_config_file_update;
+
   // Returns ServableStateMonitor that can be used to query servable states.
   virtual const ServableStateMonitor* servable_state_monitor() const {
     return servable_state_monitor_.get();
   }
+
+  template <typename ProtoType>
+  ProtoType ReadProtoFromFile(const string& file);
+
+  tensorflow::Status ParseProtoTextFile(const string& file,
+                                      google::protobuf::Message* message);
+
 
   // Returns a ServableHandle given a ServableRequest. Returns error if no such
   // Servable is available -- e.g. not yet loaded, has been quiesced/unloaded,
@@ -246,6 +266,12 @@ class ServerCore : public Manager {
       std::unique_ptr<FileSystemStoragePathSource>* source) const
       EXCLUSIVE_LOCKS_REQUIRED(config_mu_);
 
+
+ 
+  int last_Modified_Time_ = 0;
+  string path_of_base_Config_;
+
+  ServerCore* server_core_;
   // The source adapters to deploy, to handle the configured platforms as well
   // as models whose platform is unknown (errors).
   //

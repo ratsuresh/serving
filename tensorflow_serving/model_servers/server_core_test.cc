@@ -176,7 +176,7 @@ TEST_P(ServerCoreTest, ErroringModel) {
         .mutable_source_adapter_config()) = source_adapter_config_any;
   options.model_server_config = GetTestModelServerConfigForFakePlatform();
   std::unique_ptr<ServerCore> server_core;
-  Status status = ServerCore::Create(std::move(options), &server_core);
+  Status status = ServerCore::Create(std::move(options), &server_core, std::string());
   EXPECT_FALSE(status.ok());
   EXPECT_THAT(status.ToString(),
               ::testing::HasSubstr("Some models did not become available"));
@@ -327,7 +327,7 @@ TEST_P(ServerCoreTest, MultiplePlatforms) {
     CreateModelDir(model_config, 0 /* version */);
   }
   std::unique_ptr<ServerCore> server_core;
-  TF_ASSERT_OK(ServerCore::Create(std::move(options), &server_core));
+  TF_ASSERT_OK(ServerCore::Create(std::move(options), &server_core, std::string()));
 
   // Verify the models got loaded via the platform-specific source adapters.
   for (const string& platform : platforms) {
@@ -389,7 +389,7 @@ TEST_P(ServerCoreTest, MultiplePlatformsWithConfigChange) {
   (*initial_model_config->mutable_model_config_list()->add_config()) =
       models[1];
   std::unique_ptr<ServerCore> server_core;
-  TF_ASSERT_OK(ServerCore::Create(std::move(options), &server_core));
+  TF_ASSERT_OK(ServerCore::Create(std::move(options), &server_core, std::string()));
   verify_model_loaded(server_core.get(), platforms[0]);
   verify_model_loaded(server_core.get(), platforms[1]);
   verify_model_not_loaded(server_core.get(), platforms[2]);
@@ -426,7 +426,7 @@ TEST_P(ServerCoreTest, IllegalToChangeModelPlatform) {
 
   options.model_server_config = initial_config;
   std::unique_ptr<ServerCore> server_core;
-  TF_ASSERT_OK(ServerCore::Create(std::move(options), &server_core));
+  TF_ASSERT_OK(ServerCore::Create(std::move(options), &server_core, std::string()));
 
   // Attempt to switch the existing model to platform 1.
   ModelServerConfig new_config = initial_config;
@@ -492,7 +492,7 @@ TEST_P(ServerCoreTest, RequestLoggingOn) {
   options.model_server_config = model_server_config;
 
   std::unique_ptr<ServerCore> server_core;
-  TF_ASSERT_OK(ServerCore::Create(std::move(options), &server_core));
+  TF_ASSERT_OK(ServerCore::Create(std::move(options), &server_core, std::string()));
 
   LogMetadata log_metadata0;
   auto* const model_spec0 = log_metadata0.mutable_model_spec();
